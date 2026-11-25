@@ -1,0 +1,296 @@
+// Prisma Schema for CerdAgent - Decentralized Agent-to-Agent Reputation & Credit Infrastructure
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  address      String   @unique
+  role         String   @default("OPERATOR") // OPERATOR, VALIDATOR, ADMIN
+  name         String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Agent {
+  id                 String   @id // e.g. AGT-RESEARCH-01
+  name               String
+  walletAddress      String   @unique
+  operatorAddress    String
+  description        String
+  category           String   // RESEARCH, TRADING, PAYMENT, CODING, DATA_ANALYSIS, DEFI, AUTONOMOUS_SERVICE
+  metadataUri        String
+  verificationStatus String   @default("PENDING") // PENDING, VERIFIED, FLAGGED, REVOKED
+  reputationScore    Int      @default(500)
+  creditTier         String   @default("SILVER")  // BRONZE, SILVER, GOLD, PLATINUM, DIAMOND
+  riskCategory       String   @default("MODERATE") // CRITICAL, HIGH, MODERATE, LOW, EXCELLENT
+  bondedStake        Float    @default(0.0)
+  isSimulated        Boolean  @default(false)
+  registeredAt       DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  wallets            AgentWallet[]
+  sentTransactions   Transaction[]     @relation("SentTransactions")
+  receivedTransactions Transaction[]   @relation("ReceivedTransactions")
+  requestedTasks     Task[]            @relation("RequestedTasks")
+  executedTasks      Task[]            @relation("ExecutedTasks")
+  reputationProfile  ReputationScore?
+  reputationHistory  ReputationHistory[]
+  stakes             Stake[]
+  stakeHistory       StakeHistory[]
+  initiatedDisputes  Dispute[]         @relation("InitiatedDisputes")
+  counterDisputes    Dispute[]         @relation("CounterDisputes")
+  verifications      Verification[]
+
+  @@index([walletAddress])
+  @@index([operatorAddress])
+  @@index([category])
+  @@index([reputationScore])
+  @@index([creditTier])
+  @@index([riskCategory])
+}
+
+model AgentWallet {
+  id            String   @id @default(uuid())
+  agentId       String
+  walletAddress String
+  chainId       Int      @default(84532) // Base Sepolia default
+  isPrimary     Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  agent         Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, walletAddress, chainId])
+  @@index([walletAddress])
+}
+
+model Transaction {
+  id                    String   @id @default(uuid())
+  txHash                String   @unique
+  senderAgentId         String
+  receiverAgentId       String
+  amount                Float
+  tokenSymbol           String   @default("CRED")
+  status                String   // PENDING, COMPLETED, FAILED, DISPUTED, CANCELLED
+  settlementTimeSeconds Int?     @default(12)
+  serviceReference      String?
+  isSimulated           Boolean  @default(false)
+  blockNumber           Int?
+  timestamp             DateTime @default(now())
+  createdAt             DateTime @default(now())
+
+  sender                Agent    @relation("SentTransactions", fields: [senderAgentId], references: [id], onDelete: Cascade)
+  receiver              Agent    @relation("ReceivedTransactions", fields: [receiverAgentId], references: [id], onDelete: Cascade)
+  disputes              Dispute[]
+
+  @@index([senderAgentId])
+  @@index([receiverAgentId])
+  @@index([status])
+  @@index([txHash])
+  @@index([timestamp])
+}
+
+model Task {
+  id                String         @id @default(uuid())
+  taskId            String         @unique // On-chain task identifier e.g. TSK-00129
+  requestingAgentId String
+  executingAgentId  String
+  title             String
+  description       String
+  taskValue         Float
+  tokenSymbol       String         @default("CRED")
+  deadline          DateTime
+  status            String         // CREATED, ACCEPTED, IN_PROGRESS, SUBMITTED, VERIFIED, REJECTED, DISPUTED
+  evidenceUri       String?
+  reviewerNotes     String?
+  isSimulated       Boolean        @default(false)
+  createdAt         DateTime       @default(now())
+  completedAt       DateTime?
+  verifiedAt        DateTime?
+
+  requestingAgent   Agent          @relation("RequestedTasks", fields: [requestingAgentId], references: [id], onDelete: Cascade)
+  executingAgent    Agent          @relation("ExecutedTasks", fields: [executingAgentId], references: [id], onDelete: Cascade)
+  evidences         TaskEvidence[]
+  disputes          Dispute[]
+
+  @@index([requestingAgentId])
+  @@index([executingAgentId])
+  @@index([status])
+  @@index([taskId])
+}
+
+model TaskEvidence {
+  id                String   @id @default(uuid())
+  taskId            String
+  submitterAgentId  String
+  evidenceUri       String
+  evidenceHash      String
+  description       String
+  submittedAt       DateTime @default(now())
+
+  task              Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([evidenceHash])
+}
+
+model ReputationScore {
+  id                         String   @id @default(uuid())
+  agentId                    String   @unique
+  currentScore               Int      @default(500)
+  previousScore              Int      @default(500)
+  trend                      String   @default("STABLE") // UP, DOWN, STABLE
+  confidenceLevel            String   @default("LOW")    // LOW, MEDIUM, HIGH
+  riskCategory               String   @default("MODERATE")
+  transactionReliability     Float    @default(0.5)
+  taskCompletionReliability  Float    @default(0.5)
+  paymentReliability         Float    @default(0.5)
+  stakeReliability           Float    @default(0.0)
+  disputeReliability         Float    @default(1.0)
+  rawScore                   Float    @default(500.0)
+  confidenceMultiplier       Float    @default(0.5)
+  totalEvaluatedTransactions Int      @default(0)
+  totalEvaluatedTasks        Int      @default(0)
+  updatedAt                  DateTime @default(now())
+
+  agent                      Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([currentScore])
+  @@index([riskCategory])
+}
+
+model ReputationHistory {
+  id          String   @id @default(uuid())
+  agentId     String
+  score       Int
+  changeDelta Int
+  reason      String
+  timestamp   DateTime @default(now())
+
+  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId])
+  @@index([timestamp])
+}
+
+model Stake {
+  id                  String   @id @default(uuid())
+  agentId             String
+  tokenAddress        String
+  bondedAmount        Float    @default(0.0)
+  minStakeRequirement Float    @default(100.0)
+  lockedUntil         DateTime?
+  status              String   @default("ACTIVE") // ACTIVE, UNSTAKING_REQUESTED, WITHDRAWN, SLASHED
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  agent               Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId])
+  @@index([status])
+}
+
+model StakeHistory {
+  id          String   @id @default(uuid())
+  agentId     String
+  actionType  String   // DEPOSIT, INCREASE, UNSTAKE_REQUEST, WITHDRAWAL, SLASH
+  amount      Float
+  txHash      String?
+  reason      String?
+  timestamp   DateTime @default(now())
+
+  agent       Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId])
+  @@index([timestamp])
+}
+
+model Dispute {
+  id                   String            @id @default(uuid())
+  disputeId            String            @unique // DSP-0001
+  transactionId        String?
+  taskId               String?
+  initiatorAgentId     String
+  counterpartyAgentId  String
+  reason               String
+  status               String            @default("OPEN") // OPEN, EVIDENCE_PENDING, UNDER_REVIEW, RESOLVED_REQUESTER, RESOLVED_COUNTERPARTY, RESOLVED_MUTUAL, INCONCLUSIVE
+  resolutionNotes      String?
+  resolvedBy           String?
+  createdAt            DateTime          @default(now())
+  resolvedAt           DateTime?
+
+  transaction          Transaction?      @relation(fields: [transactionId], references: [id])
+  task                 Task?             @relation(fields: [taskId], references: [id])
+  initiatorAgent       Agent             @relation("InitiatedDisputes", fields: [initiatorAgentId], references: [id])
+  counterpartyAgent    Agent             @relation("CounterDisputes", fields: [counterpartyAgentId], references: [id])
+  evidences            DisputeEvidence[]
+
+  @@index([initiatorAgentId])
+  @@index([counterpartyAgentId])
+  @@index([status])
+}
+
+model DisputeEvidence {
+  id               String   @id @default(uuid())
+  disputeId        String
+  submitterAgentId String
+  evidenceUri      String
+  evidenceHash     String
+  explanation      String
+  submittedAt      DateTime @default(now())
+
+  dispute          Dispute  @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+
+  @@index([disputeId])
+}
+
+model Verification {
+  id               String   @id @default(uuid())
+  agentId          String
+  validatorAddress String
+  status           String   // VERIFIED, REJECTED, FLAGGED
+  proofUri         String?
+  notes            String?
+  timestamp        DateTime @default(now())
+
+  agent            Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId])
+  @@index([validatorAddress])
+}
+
+model ApiKey {
+  id              String    @id @default(uuid())
+  keyHash         String    @unique
+  name            String
+  ownerAddress    String
+  tier            String    @default("DEVELOPER") // FREE, DEVELOPER, ENTERPRISE
+  rateLimitPerMin Int       @default(60)
+  isActive        Boolean   @default(true)
+  expiresAt       DateTime?
+  lastUsedAt      DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([keyHash])
+  @@index([ownerAddress])
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  entityType   String   // AGENT, TRANSACTION, TASK, STAKE, DISPUTE, REPUTATION
+  entityId     String
+  action       String   // REGISTERED, UPDATED, VERIFIED, SLASHED, SCORED, DISPUTED
+  actorAddress String
+  detailsJson  String?
+  timestamp    DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorAddress])
+  @@index([timestamp])
+}
