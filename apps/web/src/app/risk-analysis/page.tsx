@@ -317,7 +317,7 @@ export default function RiskAnalysisPage() {
                           </div>
                           <div className="flex justify-between">
                             <span className="text-slate-400">Max Exposure</span>
-                            <span className="text-emerald-400 font-bold">{result.recommendedExposure.toLocaleString()} CRED</span>
+                            <span className="text-emerald-400 font-bold">{(result.recommendedExposure ?? 0).toLocaleString()} CRED</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-slate-400">Identity</span>
@@ -339,7 +339,7 @@ export default function RiskAnalysisPage() {
                       { label: 'Tx Success Rate', value: `${(result.transactionSuccessRatio * 100).toFixed(1)}%`, icon: Activity, color: result.transactionSuccessRatio > 0.8 ? 'text-emerald-400' : 'text-amber-400' },
                       { label: 'Task Completion', value: `${(result.taskCompletionRatio * 100).toFixed(1)}%`, icon: CheckCircle, color: result.taskCompletionRatio > 0.8 ? 'text-emerald-400' : 'text-amber-400' },
                       { label: 'Dispute Rate', value: `${(result.disputeRate * 100).toFixed(1)}%`, icon: AlertTriangle, color: result.disputeRate < 0.05 ? 'text-emerald-400' : 'text-rose-400' },
-                      { label: 'Bonded Stake', value: `${result.bondedStake.toLocaleString()} CRED`, icon: Shield, color: 'text-blue-400' },
+                      { label: 'Bonded Stake', value: `${(result.bondedStake ?? 0).toLocaleString()} CRED`, icon: Shield, color: 'text-blue-400' },
                     ].map(({ label, value, icon: Icon, color }) => (
                       <div key={label} className="flex items-center justify-between p-2.5 bg-slate-900/70 rounded-lg border border-slate-800">
                         <div className="flex items-center gap-2">

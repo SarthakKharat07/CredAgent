@@ -402,7 +402,7 @@ export default function StakingPage() {
                               {h.type}
                             </span>
                           </td>
-                          <td className="py-2.5 text-right font-mono font-semibold">{h.amount.toLocaleString()} CRED</td>
+                          <td className="py-2.5 text-right font-mono font-semibold">{(h.amount ?? 0).toLocaleString()} CRED</td>
                           <td className="py-2.5 text-right text-slate-400 font-mono">{new Date(h.createdAt).toLocaleDateString()}</td>
                           <td className="py-2.5 text-right font-mono text-blue-400">
                             {h.txHash ? `${h.txHash.slice(0, 8)}...` : '0xBase...'}
